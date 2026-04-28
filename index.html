@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <title>Common Octopus Observations</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+o8KW0KXXWk6FjrgmgNk0Nh3V0qC1z8jRZ3tK0vxpOVowVhV0gqv0v2lKZ/deQfG1K7uP7I4S7gXk5M6k8Qw==" crossorigin="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
     :root {
       color-scheme: light;
@@ -132,21 +134,41 @@
 
   <div class="footer">Data from <a href="https://www.inaturalist.org/" target="_blank" rel="noopener noreferrer">iNaturalist</a>. Map powered by Leaflet and Esri World Imagery.</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-o7N8Q7b0muhUjM+R5pZwpQ2i44qGrwTGoFtq9sUuPeDz2rLxaT7Peyh7p2fZSHbS6+FXlOX11G0S1jKa0Q8pBw==" crossorigin=""></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script>
-    const map = L.map('map', {
-      center: [20, 0],
-      zoom: 2,
-      minZoom: 2,
-      maxZoom: 18,
-    });
-
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
-      maxZoom: 18,
-    }).addTo(map);
-
     const statusEl = document.getElementById('status');
+
+    function updateStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.style.color = isError ? '#b91c1c' : '#334155';
+    }
+
+    function initMap() {
+      if (typeof L === 'undefined') {
+        updateStatus('Leaflet failed to load. Check network or CDN.', true);
+        return null;
+      }
+
+      updateStatus('Initializing map...');
+      const map = L.map('map', {
+        center: [20, 0],
+        zoom: 2,
+        minZoom: 2,
+        maxZoom: 18,
+      });
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
+        maxZoom: 18,
+      }).addTo(map);
+
+      return map;
+    }
+
+    const map = initMap();
+    if (!map) {
+      throw new Error('Map initialization failed');
+    }
     const refreshBtn = document.getElementById('refreshBtn');
     const clearBtn = document.getElementById('clearBtn');
     const markers = L.layerGroup().addTo(map);
@@ -158,11 +180,6 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
-    }
-
-    function updateStatus(message, isError = false) {
-      statusEl.textContent = message;
-      statusEl.style.color = isError ? '#b91c1c' : '#334155';
     }
 
     function clearMarkers() {
