@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
-  <title>Common Octopus Observations</title>
+  <title>Rock Observations</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
     :root {
@@ -119,15 +119,15 @@
   <div class="panel">
     <div class="header">
       <div>
-        <h1>Common Octopus Observations</h1>
-        <p>Recent iNaturalist observations for the genus <strong>Octopus</strong>, shown on a map with image-based basemap tiles.</p>
+        <h1>Rock Observations</h1>
+        <p>Recent iNaturalist observations for rock-related taxa, shown on a map with image-based basemap tiles.</p>
       </div>
       <div class="controls">
         <button id="refreshBtn">Refresh observations</button>
         <button id="clearBtn" class="secondary">Clear markers</button>
       </div>
     </div>
-    <div class="status" id="status">Loading observations...</div>
+    <div class="status" id="status">Loading rock observations...</div>
   </div>
 
   <div id="map"></div>
@@ -187,9 +187,14 @@
       updateStatus('Markers cleared. Click Refresh observations to load data again.');
     }
 
+    function isRockObservation(obs) {
+      const text = `${obs.taxon?.preferred_common_name || ''} ${obs.taxon?.name || ''}`.toLowerCase();
+      return /rock|stone|mineral|crystal|agate|geode|granite|marble|limestone|shale|slate|basalt|obsidian|quartz|calcite|garnet|feldspar|mica|schist|gabbro|pegmatite/.test(text);
+    }
+
     async function fetchObservations() {
-      updateStatus('Fetching recent Octopus observations...');
-      const url = 'https://api.inaturalist.org/v1/observations?taxon_name=Octopus&order=desc&order_by=created_at&per_page=50&place_id=any';
+      updateStatus('Fetching recent rock-related observations...');
+      const url = 'https://api.inaturalist.org/v1/observations?taxon_name=Rock&order=desc&order_by=created_at&per_page=100&place_id=any';
 
       try {
         const response = await fetch(url);
@@ -206,7 +211,7 @@
 
     function formatObservationPopup(obs) {
       const commonName = escapeHtml(obs.taxon?.preferred_common_name || 'Unknown');
-      const scientificName = escapeHtml(obs.taxon?.name || 'Octopus');
+      const scientificName = escapeHtml(obs.taxon?.name || 'Rock');
       const observedOn = escapeHtml(obs.observed_on || obs.created_at || 'Unknown date');
       const observer = escapeHtml(obs.user?.login || obs.user?.name || 'Unknown');
       const observationUrl = escapeHtml(obs.uri || `https://www.inaturalist.org/observations/${obs.id}`);
@@ -227,6 +232,10 @@
       const validPoints = [];
 
       results.forEach((obs) => {
+        if (!isRockObservation(obs)) {
+          return;
+        }
+
         if (obs.geojson?.coordinates && Array.isArray(obs.geojson.coordinates)) {
           const [lng, lat] = obs.geojson.coordinates;
           if (typeof lat === 'number' && typeof lng === 'number') {
@@ -250,7 +259,7 @@
 
       const bounds = L.latLngBounds(validPoints);
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
-      updateStatus(`Displayed ${validPoints.length} recent Octopus observations.`);
+      updateStatus(`Displayed ${validPoints.length} recent rock-related observations.`);
     }
 
     refreshBtn.addEventListener('click', fetchObservations);
