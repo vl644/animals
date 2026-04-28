@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Common Octopus Observations</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-sA+o8KW0KXXWk6FjrgmgNk0Nh3V0qC1z8jRZ3tK0vxpOVowVhV0gqv0v2lKZ/deQfG1K7uP7I4S7gXk5M6k8Qw==" crossorigin="" />
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f8fb;
+      color: #15202b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel {
+      padding: 1rem;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: clamp(1.25rem, 2vw, 1.75rem);
+      line-height: 1.1;
+    }
+
+    .header p {
+      margin: 0.5rem 0 0;
+      color: #4b5563;
+      max-width: 34rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    button {
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: white;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s ease;
+    }
+
+    button:hover,
+    button:focus-visible {
+      background: #1d4ed8;
+      outline: none;
+    }
+
+    button.secondary {
+      background: #f8fafc;
+      color: #111827;
+      border-color: #cbd5e1;
+    }
+
+    button.secondary:hover,
+    button.secondary:focus-visible {
+      background: #e2e8f0;
+    }
+
+    .status {
+      color: #334155;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+
+    #map {
+      flex: 1;
+      min-height: 60vh;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .footer {
+      padding: 0.75rem 1rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #64748b;
+      background: #ffffff;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    a {
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="header">
+      <div>
+        <h1>Common Octopus Observations</h1>
+        <p>Recent iNaturalist observations for the genus <strong>Octopus</strong>, shown on a map with image-based basemap tiles.</p>
+      </div>
+      <div class="controls">
+        <button id="refreshBtn">Refresh observations</button>
+        <button id="clearBtn" class="secondary">Clear markers</button>
+      </div>
+    </div>
+    <div class="status" id="status">Loading observations...</div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="footer">Data from <a href="https://www.inaturalist.org/" target="_blank" rel="noopener noreferrer">iNaturalist</a>. Map powered by Leaflet and Esri World Imagery.</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-o7N8Q7b0muhUjM+R5pZwpQ2i44qGrwTGoFtq9sUuPeDz2rLxaT7Peyh7p2fZSHbS6+FXlOX11G0S1jKa0Q8pBw==" crossorigin=""></script>
+  <script>
+    const map = L.map('map', {
+      center: [20, 0],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 18,
+    });
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
+      maxZoom: 18,
+    }).addTo(map);
+
+    const statusEl = document.getElementById('status');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const markers = L.layerGroup().addTo(map);
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function updateStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.style.color = isError ? '#b91c1c' : '#334155';
+    }
+
+    function clearMarkers() {
+      markers.clearLayers();
+      updateStatus('Markers cleared. Click Refresh observations to load data again.');
+    }
+
+    async function fetchObservations() {
+      updateStatus('Fetching recent Octopus observations...');
+      const url = 'https://api.inaturalist.org/v1/observations?taxon_name=Octopus&order=desc&order_by=created_at&per_page=50&place_id=any';
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`API request failed (${response.status})`);
+        }
+
+        const data = await response.json();
+        displayObservations(data.results || []);
+      } catch (error) {
+        updateStatus(`Unable to load observations: ${error.message}`, true);
+      }
+    }
+
+    function formatObservationPopup(obs) {
+      const commonName = escapeHtml(obs.taxon?.preferred_common_name || 'Unknown');
+      const scientificName = escapeHtml(obs.taxon?.name || 'Octopus');
+      const observedOn = escapeHtml(obs.observed_on || obs.created_at || 'Unknown date');
+      const observer = escapeHtml(obs.user?.login || obs.user?.name || 'Unknown');
+      const observationUrl = escapeHtml(obs.uri || `https://www.inaturalist.org/observations/${obs.id}`);
+
+      return `
+        <div style="line-height:1.4;">
+          <strong>${commonName}</strong><br />
+          <em>${scientificName}</em><br />
+          <strong>Date:</strong> ${observedOn}<br />
+          <strong>Observer:</strong> ${observer}<br />
+          <a href="${observationUrl}" target="_blank" rel="noopener noreferrer">View on iNaturalist</a>
+        </div>
+      `;
+    }
+
+    function displayObservations(results) {
+      markers.clearLayers();
+      const validPoints = [];
+
+      results.forEach((obs) => {
+        if (obs.geojson?.coordinates && Array.isArray(obs.geojson.coordinates)) {
+          const [lng, lat] = obs.geojson.coordinates;
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            const marker = L.marker([lat, lng]);
+            marker.bindPopup(formatObservationPopup(obs));
+            marker.addTo(markers);
+            validPoints.push([lat, lng]);
+          }
+        } else if (typeof obs.latitude === 'number' && typeof obs.longitude === 'number') {
+          const marker = L.marker([obs.latitude, obs.longitude]);
+          marker.bindPopup(formatObservationPopup(obs));
+          marker.addTo(markers);
+          validPoints.push([obs.latitude, obs.longitude]);
+        }
+      });
+
+      if (validPoints.length === 0) {
+        updateStatus('No valid observation coordinates were found.', true);
+        return;
+      }
+
+      const bounds = L.latLngBounds(validPoints);
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+      updateStatus(`Displayed ${validPoints.length} recent Octopus observations.`);
+    }
+
+    refreshBtn.addEventListener('click', fetchObservations);
+    clearBtn.addEventListener('click', clearMarkers);
+
+    fetchObservations();
+  </script>
+</body>
+</html>
